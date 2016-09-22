@@ -20,31 +20,76 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.text.Collator;
+import java.util.*;
 
 public class SongListActivity extends AppCompatActivity {
+    private static final String SONGS_FILE_NAME = "songs.txt";
+
     List<Song> mSongs;
     ListView mSongListView;
     BaseAdapter mSongListAdapter;
 
     RequestQueue mRequestQueue;
 
+    public static class SlovakComparator implements Comparator<Song> {
+        private Collator mCollator;
+        public SlovakComparator() {
+            mCollator = Collator.getInstance(Locale.forLanguageTag("sk_SK"));
+            mCollator.setStrength(Collator.PRIMARY);
+        }
+        @Override
+        public int compare(Song l, Song r) {
+            return mCollator.compare(l.name, r.name);
+        }
+    }
+
     public SongListActivity() {
+    }
+
+    private List<Song> readSongs() {
+        try {
+            FileInputStream stream = openFileInput(SONGS_FILE_NAME);
+            ByteArrayOutputStream  result = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = stream.read(buffer)) != -1) {
+                result.write(buffer, 0, length);
+            }
+            String s = result.toString("UTF-8");
+
+            JSONObject songs = new JSONObject(s);
+            return parseSongs(songs);
+        } catch (Exception e) {
+            // nom nom
+        }
+
+        return new ArrayList<>();
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         mRequestQueue = Volley.newRequestQueue(this);
         super.onCreate(savedInstanceState);
-        mSongs = new ArrayList<>();
-        mSongs.add(new Song("Kohútik", R.drawable.kohutik, "CDEFFFFEDEEEEDCDDDDEDCCC"));
-        mSongs.add(new Song("Čierne oči", R.drawable.cierne_oci, "GDGABAGBABcdcBAGABcBAGDGABAG"));
-        mSongs.add(new Song("Rudolf", R.drawable.rudolf, "GAGEcAGGAGAGcBFGFDBAGGAGAGdc"));
-        mSongs.add(new Song("Ide ide vláčik", R.drawable.ide_ide_vlacik, "GGGAGEGFEDCGGGAGEGFEDCFDDDECCCFDDDECCCGGGAGEGFEDC"));
-        mSongs.add(new Song("Ide vláčik ši-ši-ši", R.drawable.ide_vlacik_si_si_si, "GGGAGGEGGGAGGEGGGEGGGGEGGEEE"));
-        mSongs.add(new Song("Itsy bitsy spider", R.drawable.itsy_bitsy_spider, "GGGABBBAGABGBBcddcBcdBGGABBAGABGDDGGGABBBAGABG"));
+
+        List<Song> songs = readSongs();
+        if (!songs.isEmpty()) {
+            mSongs = songs;
+        } else {
+            mSongs = new ArrayList<>();
+            mSongs.add(new Song("Kohútik", R.drawable.kohutik, "CDEFFFFEDEEEEDCDDDDEDCCC"));
+            mSongs.add(new Song("Čierne oči", R.drawable.cierne_oci, "GDGABAGBABcdcBAGABcBAGDGABAG"));
+            mSongs.add(new Song("Rudolf", R.drawable.rudolf, "GAGEcAGGAGAGcBFGFDBAGGAGAGdc"));
+            mSongs.add(new Song("Ide ide vláčik", R.drawable.ide_ide_vlacik, "GGGAGEGFEDCGGGAGEGFEDCFDDDECCCFDDDECCCGGGAGEGFEDC"));
+            mSongs.add(new Song("Ide vláčik ši-ši-ši", R.drawable.ide_vlacik_si_si_si, "GGGAGGEGGGAGGEGGGEGGGGEGGEEE"));
+            mSongs.add(new Song("Itsy bitsy spider", R.drawable.itsy_bitsy_spider, "GGGABBBAGABGBBcddcBcdBGGABBAGABGDDGGGABBBAGABG"));
+        }
+
+        Collections.sort(mSongs, new SlovakComparator());
 
         setContentView(R.layout.activity_song_list);
 
@@ -85,26 +130,19 @@ public class SongListActivity extends AppCompatActivity {
                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
-                        List<Song> result = new ArrayList<>();
-                        try {
-                            JSONArray songs = response.getJSONArray("songs");
-                            for (int i = 0; i < songs.length(); ++i) {
-                                JSONObject song = songs.getJSONObject(i);
-                                String name = song.getString("name");
-                                String encodedImage = song.getString("image");
-                                String notes = song.getString("notes");
-                                byte[] imageBytes = Base64.decode(encodedImage, Base64.DEFAULT);
-                                Bitmap icon = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-
-                                result.add(new Song(name, icon, notes));
-                            }
-                        } catch (JSONException e) {
-                            // nom nom
-                        }
+                        List<Song> result = parseSongs(response);
 
                         mSongs.clear();
                         mSongs.addAll(result);
                         mSongListAdapter.notifyDataSetChanged();
+
+                        try {
+                            FileOutputStream stream = openFileOutput(SONGS_FILE_NAME, Context.MODE_PRIVATE);
+                            stream.write(response.toString().getBytes("UTF-8"));
+                            stream.close();
+                        } catch (Exception e) {
+                            // nom nom
+                        }
                     }
                 },
                 new Response.ErrorListener() {
@@ -114,6 +152,27 @@ public class SongListActivity extends AppCompatActivity {
                     }
                 });
         mRequestQueue.add(request);
+    }
+
+    private List<Song> parseSongs(JSONObject response) {
+        List<Song> result = new ArrayList<>();
+        try {
+            JSONArray songs = response.getJSONArray("songs");
+            for (int i = 0; i < songs.length(); ++i) {
+                JSONObject song = songs.getJSONObject(i);
+                String name = song.getString("name");
+                String encodedImage = song.getString("image");
+                String notes = song.getString("notes");
+                byte[] imageBytes = Base64.decode(encodedImage, Base64.DEFAULT);
+                Bitmap icon = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+
+                result.add(new Song(name, icon, notes));
+            }
+        } catch (JSONException e) {
+            result = new ArrayList<>();
+            // nom nom
+        }
+        return result;
     }
 
     public class SongListAdapter extends ArrayAdapter<Song> {
