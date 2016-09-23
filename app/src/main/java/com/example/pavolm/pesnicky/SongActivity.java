@@ -18,9 +18,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SongActivity extends AppCompatActivity {
-    private static final String ALL_NOTES = "CDEFGABcd ";
+    private static final String ALL_NOTES = "abCDEFGABcd ";
 
     private static final @ColorInt int ALL_COLORS[] = {
+            Color.parseColor("#ff808080"),
+            Color.parseColor("#ffa05000"),
             Color.parseColor("#ffc8003c"),
             Color.parseColor("#ffff8000"),
             Color.parseColor("#ffffff00"),

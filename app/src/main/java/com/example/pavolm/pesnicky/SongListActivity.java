@@ -134,6 +134,8 @@ public class SongListActivity extends AppCompatActivity {
 
                         mSongs.clear();
                         mSongs.addAll(result);
+                        Collections.sort(mSongs, new SlovakComparator());
+
                         mSongListAdapter.notifyDataSetChanged();
 
                         try {
